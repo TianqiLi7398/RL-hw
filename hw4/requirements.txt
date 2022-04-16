@@ -1,0 +1,6 @@
+pickle
+torch
+multiprocessing
+numpy
+gym==0.18.3
+argparse
