@@ -1,7 +1,6 @@
-
+""" This file provides solutions to Point-v0 environment """
 import torch
 from utils import to_device
-import numpy as np
 
 
 def cal_return(rewards, masks, gamma, pg_eq, device):
@@ -60,22 +59,18 @@ def cal_return(rewards, masks, gamma, pg_eq, device):
 def estimate_net_grad(rewards, masks, states, actions, gamma, theta, device, pg_eq = 0, acc_obj = None):
 
     """ ESTIMATE RETURNS"""
-    # returns = cal_return(rewards, masks, gamma, pg_eq)
     
     returns = (acc_obj - acc_obj.mean()) / acc_obj.std()
-    # returns = torch.tensor(returns, device=device)
-    # to_device(returns)
 
     """ ESTIMATE NET GRADIENT"""
     # https://stackoverflow.com/questions/53496570/matrix-multiplication-in-pytorch
     something = states * returns.view(states.size(0), 1)
-    # print(something)
+    
     log_probs = torch.mm(actions.T - torch.mm(theta, states.T), something)
     policy_loss = log_probs / (states.size(0))
     
     grad = policy_loss / (torch.norm(policy_loss) + 1e-8)
 
-    # returns = to_device(device, grad)
     
     return grad
 

@@ -1,24 +1,17 @@
 import argparse
 import gym
 import os
-import sys
 import pickle
 import time
 
 from utils import *
 from utils.paint import summarize_plot
-from torch import nn
 from agent import Agent, include_bias
 
 from models.mlp_critic import Value
 from models.mlp_policy_disc import DiscretePolicy
-
-from point_env import PointEnv
 from solutions.gradient import estimate_advantages, a2c_step, pg_step
-from solutions.point_mass_solutions import estimate_net_grad, cal_return
-
-import torch.optim as optim
-import torch.nn.functional as F
+from solutions.point_mass_solutions import estimate_net_grad
 
 parser = argparse.ArgumentParser(description='Pytorch Policy Gradient')
 parser.add_argument('--env-name', default="Point-v0", metavar='G',
@@ -90,7 +83,6 @@ else:
     policy_net = DiscretePolicy(state_dim, env.action_space.n, hidden_size=(64, 16))
     theta = None
     value_net = Value(state_dim)
-    # to_device(device, policy_net, value_net)
     policy_net.to(device)
     value_net.to(device)
 
@@ -98,7 +90,6 @@ else:
     optimizer_policy = torch.optim.Adam(policy_net.parameters(), lr=args.learning_rate)
     optimizer_value = torch.optim.Adam(value_net.parameters(), lr=args.learning_rate)
     """create agent"""
-    # what is running_state?
     agent = Agent(env, args.env_name, device, policy_net, theta, custom_reward=None,
                   running_state=running_state, num_threads=args.num_threads, pg_eq = args.pg_eq,
                   gamma = args.gamma)
@@ -131,22 +122,19 @@ def update_params(batch, acc_obj, i_iter, theta = None):
             a2c_step(policy_net, value_net, optimizer_policy, optimizer_value, states, actions, 
                 returns, advantages, args.l2_reg)
         else:
-            # returns = cal_return(rewards, masks, args.gamma, args.pg_eq)
-            # another_acc_obj = cal_return(rewards, masks, args.gamma, args.pg_eq, device)
-            # print(another_acc_obj[0:5], acc_obj[0:5], rewards[0:5], masks[0:5])
+            
             pg_step(policy_net, optimizer_policy, states, actions, acc_obj)
 
     if args.env_name == 'Point-v0':
         """get values estimates from the trajectories"""
-        # test here
-        # print(states.size())
+       
         states_biased = include_bias(states)
-        # print(states_biased)
+        
         net_grad = estimate_net_grad(rewards, masks, states_biased, actions, args.gamma, theta, 
             device, pg_eq=args.pg_eq, acc_obj= acc_obj)
 
         """update policy parameters"""
-        # print(net_grad * args.learning_rate, theta)
+        
         theta += net_grad * args.learning_rate
 
 

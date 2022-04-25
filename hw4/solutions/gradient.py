@@ -1,7 +1,11 @@
+""" This file provides fucntions of CartPole-v0 environment """
+
 import torch
 from utils import to_device
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):
+    """ this function returns the advantage value in batch samples
+     """
     rewards, masks, values = to_device(torch.device('cpu'), rewards, masks, values)
     tensor_type = type(rewards)
     deltas = tensor_type(rewards.size(0), 1)
@@ -23,12 +27,12 @@ def estimate_advantages(rewards, masks, values, gamma, tau, device):
     return advantages, returns
 
 def pg_step(policy_net, optimizer_policy, states, actions, acc_obj):
-
-    # returns = returns.detach()
+    """ this function performs normal Actor-Critic update based on 
+    customized critic value. """
+    # normalize acc_obj value, which is the customized critic value
     returns = (acc_obj - acc_obj.mean()) / acc_obj.std()
     """update policy"""
     log_probs = policy_net.get_log_prob(states, actions)
-    # print(states.size(), log_probs.size(), returns.size())
     policy_loss = -(log_probs * returns).mean()
     optimizer_policy.zero_grad()
     policy_loss.backward()
@@ -36,7 +40,7 @@ def pg_step(policy_net, optimizer_policy, states, actions, acc_obj):
     optimizer_policy.step()
 
 def a2c_step(policy_net, value_net, optimizer_policy, optimizer_value, states, actions, returns, advantages, l2_reg):
-
+    """ this function performs Advantage Actor-Critic (A2C) updates"""
     """update critic"""
     values_pred = value_net(states)
     value_loss = (values_pred - returns).pow(2).mean()
@@ -49,7 +53,6 @@ def a2c_step(policy_net, value_net, optimizer_policy, optimizer_value, states, a
     
     """update policy"""
     log_probs = policy_net.get_log_prob(states, actions)
-    # print(log_probs.size(), advantages.size())
     policy_loss = -(log_probs * advantages).mean()
     optimizer_policy.zero_grad()
     policy_loss.backward()

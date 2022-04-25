@@ -1,10 +1,6 @@
 import multiprocessing
-from typing_extensions import runtime
 import gym
 import gym.wrappers
-from numpy import float64
-from solutions.gradient import pg_step
-from utils.replay_memory import Memory, Memory_new
 from utils.torch import *
 import math
 import time
@@ -49,7 +45,6 @@ def collect_samples(pid, queue, env, env_name, policy, theta, custom_reward,
 
     while num_steps < min_batch_size:
         state = env.reset()
-        # print("dafault dtype = %s" % torch.get_default_dtype() )
         if running_state is not None:
             state = running_state(state)
         reward_episode = 0
@@ -59,15 +54,17 @@ def collect_samples(pid, queue, env, env_name, policy, theta, custom_reward,
             # here state_var.dtype is float32, in repo 
             # https://github.com/Khrylx/PyTorch-RL/blob/master/examples/a2c_gym.py
             # it is float64...
-            # print(state_var.dtype)
+            
             with torch.no_grad():
                 if env_name == 'CartPole-v0':
+                    
                     state_var = tensor(state, dtype=torch.float64).unsqueeze(0)
+                    
                     action = policy.select_action(state_var)[0].numpy()
                     action = int(action) if policy.is_disc_action else action.astype(np.float64)
                 else:
+                    
                     state_var = tensor(state, dtype=torch.float32).unsqueeze(0)
-                    # print(theta.get_device(), state_var.get_device())
                     action = point_get_action(theta, state_var).numpy()
                     action = action.astype(np.float64)
 
@@ -83,15 +80,13 @@ def collect_samples(pid, queue, env, env_name, policy, theta, custom_reward,
                 max_c_reward = max(max_c_reward, reward)
 
             mask = 0 if done else 1
-            # if t == 2:
-            #     mask = 0
 
             memory.push(state, action, mask, next_state, reward)
             if render:
                 env.render()
             if done:
                 break
-            # if mask == 0: break
+            
 
             state = next_state
         
@@ -110,9 +105,9 @@ def collect_samples(pid, queue, env, env_name, policy, theta, custom_reward,
             for i in range(t+1):
                 gt = memory.memory[-1-i].reward + gamma * gt
                 acc_obj_episode.insert(0, gt * (gamma ** (t - i)))
-            # print(acc_obj_episode)
+            
             acc_obj += acc_obj_episode
-        # print(len(memory.memory), len(acc_obj_episode), t+1)
+        
         # log stats
         num_steps += (t + 1)
         num_episodes += 1
@@ -121,7 +116,7 @@ def collect_samples(pid, queue, env, env_name, policy, theta, custom_reward,
         min_reward = min(min_reward, reward_episode)
         max_reward = max(max_reward, reward_episode)
     # assert len(memory.memory) == len(acc_obj), RuntimeError("acc_obj does not match!")
-    # why sum all rewards?????
+    
     log['num_steps'] = num_steps
     log['num_episodes'] = num_episodes
     log['total_reward'] = total_reward
@@ -177,16 +172,15 @@ class Agent:
 
     def collect_samples(self, min_batch_size, mean_action=False, render=False):
         t_start = time.time()
-        # ?? move policy, theta from cuda to cpu, to run the cases
+        
         local_theta = None
         if self.env_name == 'CartPole-v0':
             to_device(torch.device('cpu'), self.policy)
         elif self.env_name == 'Point-v0':
-            ######## we should set theta to device as well?
+            
             local_theta = self.theta.to('cpu').numpy()
             local_theta = torch.from_numpy(local_theta).float().unsqueeze(0).to('cpu').squeeze(0)
-            # print(local_theta)
-            # print("after change, %s" % self.theta.get_device())
+            
 
         if render:
             env = gym.wrappers.Monitor(env=self.env, directory="./assets", force=True)
@@ -214,18 +208,18 @@ class Agent:
             worker_memories = [None] * len(workers)
             worker_acc_objs = [None] * len(workers)
             for _ in workers:
-                # print(queue.get())
+                
                 pid, worker_memory, worker_log, worker_acc_obj = queue.get()
                 worker_memories[pid - 1] = worker_memory
                 worker_logs[pid - 1] = worker_log
                 worker_acc_objs[pid - 1] = worker_acc_obj
-            # print(len(worker_memories))
+            
             for worker_memory in worker_memories:
                 memory.append(worker_memory)
             for worker_acc_obj in worker_acc_objs:
                 acc_obj += worker_acc_obj
             # there is no random sample, but just zip all memory sections together
-            # print(len(memory.memory), len(acc_obj))
+            
             batch = memory.sample()
 
             if self.num_threads > 1:
